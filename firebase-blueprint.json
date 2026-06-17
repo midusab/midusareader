@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "Book": {
+      "title": "Book",
+      "description": "A book being tracked by the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "author": { "type": "string" },
+        "totalPages": { "type": "integer" },
+        "currentPage": { "type": "integer" },
+        "status": { "type": "string", "enum": ["reading", "tbr", "finished"] },
+        "coverUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "status", "totalPages", "currentPage"]
+    },
+    "DailyLog": {
+      "title": "Daily Log",
+      "description": "A log of reading activity for a specific day",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "bookId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "pagesRead": { "type": "integer" },
+        "durationMinutes": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "bookId", "date", "pagesRead"]
+    },
+    "Quote": {
+      "title": "Quote",
+      "description": "An important quote from a book",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "bookTitle": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "content"]
+    },
+    "UserSettings": {
+      "title": "User Settings",
+      "description": "Customizable app settings for the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "pomodoroWorkTime": { "type": "integer" },
+        "pomodoroBreakTime": { "type": "integer" }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/books/{bookId}": {
+      "schema": "Book",
+      "description": "Collection of books"
+    },
+    "/logs/{logId}": {
+      "schema": "DailyLog",
+      "description": "Collection of daily reading logs"
+    },
+    "/quotes/{quoteId}": {
+      "schema": "Quote",
+      "description": "Collection of book quotes"
+    },
+    "/settings/{userId}": {
+      "schema": "UserSettings",
+      "description": "User specific settings"
+    }
+  }
+}

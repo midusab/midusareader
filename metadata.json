@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "MidR",
+  "description": "A minimalist personal reading tracker with Pomodoro timer, habit analytics, and quote carousels.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

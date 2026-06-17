@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validations
+    function isValidBook(data) {
+      return data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.author is string && data.author.size() <= 200 &&
+             data.totalPages is int && data.totalPages >= 0 &&
+             data.currentPage is int && data.currentPage >= 0 &&
+             data.status in ['reading', 'tbr', 'finished'] &&
+             (data.category == null || data.category is string) &&
+             (data.notes == null || (data.notes is string && data.notes.size() <= 5000)) &&
+             (data.coverUrl == null || data.coverUrl is string);
+    }
+
+    function isValidDailyLog(data) {
+      return data.userId == request.auth.uid &&
+             data.bookId is string &&
+             data.date is string &&
+             data.pagesRead is int && data.pagesRead >= 0 &&
+             data.durationMinutes is int && data.durationMinutes >= 0;
+    }
+
+    function isValidQuote(data) {
+      return data.userId == request.auth.uid &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
+             (data.author == null || data.author is string) &&
+             (data.bookTitle == null || data.bookTitle is string);
+    }
+
+    function isValidSettings(data) {
+      return data.userId == request.auth.uid &&
+             (data.pomodoroWorkTime == null || data.pomodoroWorkTime is int) &&
+             (data.pomodoroBreakTime == null || data.pomodoroBreakTime is int);
+    }
+
+    // 3. Collection Matches
+    
+    match /books/{bookId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidBook(incoming());
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidBook(incoming());
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    match /logs/{logId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidDailyLog(incoming());
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidDailyLog(incoming());
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    match /quotes/{quoteId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidQuote(incoming());
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidQuote(incoming());
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    match /settings/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isValidSettings(incoming());
+    }
+  }
+}
