@@ -33,8 +33,8 @@ export default function ReadingAnalytics({ logs }: AnalyticsProps) {
   return (
     <GlassCard className="h-64 bg-white/70 border-white/80">
       <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6 font-bold">Weekly Progress</h3>
-      <div className="h-40 w-full">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="h-40 w-full min-h-0 min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart data={data}>
             <XAxis 
               dataKey="name" 

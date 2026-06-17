@@ -9,7 +9,7 @@ import GlassCard from '../layout/GlassCard';
 import { Book, BookStatus } from '@/src/types';
 import { fetchBookByIsbn } from '@/src/lib/googleBooks';
 import { toast } from 'sonner';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, X } from 'lucide-react';
 
 interface AddBookModalProps {
   onClose: () => void;
@@ -25,6 +25,7 @@ export default function AddBookModal({ onClose, onAdd }: AddBookModalProps) {
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<BookStatus>('reading');
   const [isFetching, setIsFetching] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleIsbnSearch = async () => {
     if (!isbn) return;
@@ -54,31 +55,45 @@ export default function AddBookModal({ onClose, onAdd }: AddBookModalProps) {
       return;
     }
 
-    await onAdd({
-      title,
-      author,
-      totalPages: Number(totalPages),
-      currentPage: 0,
-      status,
-      isbn,
-      coverUrl,
-      notes,
-    });
-    
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await onAdd({
+        title,
+        author,
+        totalPages: Number(totalPages),
+        currentPage: 0,
+        status,
+        isbn,
+        coverUrl,
+        notes,
+      });
+      onClose();
+    } catch (error) {
+      toast.error('Failed to add book. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-md"
       />
-      <GlassCard className="w-full max-w-md relative z-10 border-white/60 shadow-2xl my-auto">
-        <h3 className="text-2xl font-black mb-6 text-slate-900">Add New Book</h3>
+      <GlassCard className="w-full max-w-md relative z-10 border-white/60 shadow-2xl my-auto p-5 sm:p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-2xl font-black text-slate-900">Add New Book</h3>
+          <button 
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
+          >
+            <X size={20} />
+          </button>
+        </div>
         
         <div className="mb-6">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">ISBN Auto-fill</label>
@@ -90,6 +105,7 @@ export default function AddBookModal({ onClose, onAdd }: AddBookModalProps) {
               className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl p-4 outline-none focus:border-primary transition-all text-slate-800 text-sm" 
             />
             <button 
+              type="button"
               onClick={handleIsbnSearch}
               disabled={isFetching || !isbn}
               className="bg-slate-900 text-white p-4 rounded-2xl hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50"
@@ -162,8 +178,12 @@ export default function AddBookModal({ onClose, onAdd }: AddBookModalProps) {
             />
           </div>
 
-          <button type="submit" className="w-full py-4 bg-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-transform mt-2">
-            Add to Library
+          <button 
+            type="submit" 
+            disabled={isSubmitting}
+            className="w-full py-4 bg-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-transform mt-2 flex items-center justify-center gap-2 disabled:opacity-70 disabled:active:scale-100"
+          >
+            {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : 'Add to Library'}
           </button>
         </form>
       </GlassCard>

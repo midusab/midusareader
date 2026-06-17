@@ -40,6 +40,16 @@ export interface Quote {
   createdAt: any;
 }
 
+export interface Review {
+  id?: string;
+  userId: string;
+  bookId: string;
+  rating: number; // 1-5
+  comment: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
 export interface UserSettings {
   userId: string;
   pomodoroWorkTime: number; // in minutes

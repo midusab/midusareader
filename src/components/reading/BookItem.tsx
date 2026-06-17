@@ -3,20 +3,45 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Book } from '@/src/types';
+import { Book, Review } from '@/src/types';
 import { motion } from 'motion/react';
-import { Book as BookIcon, CheckCircle2, Bookmark, Trash2 } from 'lucide-react';
+import { Book as BookIcon, CheckCircle2, Bookmark, Trash2, Loader2, Star } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { useState } from 'react';
 
 interface BookItemProps {
   book: Book;
   onUpdateProgress: (book: Book) => void;
-  onMarkFinished: (book: Book) => void;
-  onDelete: (id: string) => void;
+  onMarkFinished: (book: Book) => Promise<void> | void;
+  onDelete: (id: string) => Promise<void> | void;
+  onReview: (book: Book) => void;
+  review?: Review;
 }
 
-export default function BookItem({ book, onUpdateProgress, onMarkFinished, onDelete }: BookItemProps) {
+export default function BookItem({ book, onUpdateProgress, onMarkFinished, onDelete, onReview, review }: BookItemProps) {
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const progress = Math.min(Math.round((book.currentPage / book.totalPages) * 100), 100);
+
+  const handleMarkFinished = async () => {
+    setIsFinishing(true);
+    try {
+      await onMarkFinished(book);
+    } finally {
+      setIsFinishing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (confirm('Delete this book?')) {
+      setIsDeleting(true);
+      try {
+        await onDelete(book.id!);
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
 
   return (
     <motion.div 
@@ -55,10 +80,23 @@ export default function BookItem({ book, onUpdateProgress, onMarkFinished, onDel
         </div>
       </div>
 
-      {book.notes && (
+      {book.notes && !review && (
         <div className="mt-4 px-3 py-2 bg-slate-50 rounded-xl border border-slate-100">
           <p className="text-[10px] text-slate-500 italic line-clamp-1">
             "{book.notes}"
+          </p>
+        </div>
+      )}
+
+      {review && (
+        <div className="mt-4 px-3 py-2 bg-yellow-50 rounded-xl border border-yellow-100 flex items-start gap-2">
+          <div className="flex gap-0.5 mt-0.5 shrink-0">
+            {[1, 2, 3, 4, 5].map(i => (
+              <Star key={i} size={10} className={cn(i <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-slate-200")} />
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-600 line-clamp-2 italic">
+            "{review.comment}"
           </p>
         </div>
       )}
@@ -73,26 +111,39 @@ export default function BookItem({ book, onUpdateProgress, onMarkFinished, onDel
               <Bookmark size={14} /> Update
             </button>
             <button 
-              onClick={() => onMarkFinished(book)}
-              className="px-4 py-3 rounded-xl bg-ternary/10 text-ternary hover:bg-ternary hover:text-white transition-all flex items-center justify-center active:scale-95"
+              onClick={handleMarkFinished}
+              disabled={isFinishing}
+              className="px-4 py-3 rounded-xl bg-ternary/10 text-ternary hover:bg-ternary hover:text-white transition-all flex items-center justify-center active:scale-95 disabled:opacity-50"
               title="Mark as finished"
             >
-              <CheckCircle2 size={18} />
+              {isFinishing ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
             </button>
           </>
         ) : (
-          <div className="flex-1 text-center py-2 px-4 bg-ternary/5 rounded-xl border border-ternary/10">
-             <span className="text-[10px] font-black text-ternary uppercase tracking-widest flex items-center justify-center gap-2">
-               <CheckCircle2 size={14} /> Journey Completed
-             </span>
+          <div className="flex-1 flex gap-2">
+            <div className="flex-1 text-center py-3 px-4 bg-ternary/5 rounded-xl border border-ternary/10">
+              <span className="text-[10px] font-black text-ternary uppercase tracking-widest flex items-center justify-center gap-2">
+                <CheckCircle2 size={14} /> Completed
+              </span>
+            </div>
+            {!review && (
+              <button 
+                onClick={() => onReview(book)}
+                className="px-4 py-3 rounded-xl bg-yellow-50 text-yellow-600 hover:bg-yellow-400 hover:text-white transition-all flex items-center justify-center active:scale-95 border border-yellow-100"
+                title="Add review"
+              >
+                <Star size={18} />
+              </button>
+            )}
           </div>
         )}
         <button 
-          onClick={() => confirm('Delete this book?') && onDelete(book.id!)}
-          className="px-4 py-3 rounded-xl bg-slate-50 text-slate-300 hover:bg-secondary/10 hover:text-secondary transition-all flex items-center justify-center active:scale-95 border border-slate-100"
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className="px-4 py-3 rounded-xl bg-slate-50 text-slate-300 hover:bg-secondary/10 hover:text-secondary transition-all flex items-center justify-center active:scale-95 border border-slate-100 disabled:opacity-50"
           title="Delete book"
         >
-          <Trash2 size={18} />
+          {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
         </button>
       </div>
     </motion.div>

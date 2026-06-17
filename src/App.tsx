@@ -15,7 +15,9 @@ import {
   BookOpen,
   Target,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  X,
+  Loader2
 } from 'lucide-react';
 import { useFirebase } from './hooks/useFirebase';
 import { signInWithGoogle, logout } from './lib/firebase';
@@ -31,12 +33,20 @@ import { cn } from './lib/utils';
 import { format } from 'date-fns';
 import { Toaster, toast } from 'sonner';
 import AddBookModal from './components/modals/AddBookModal';
+import AddQuoteModal from './components/modals/AddQuoteModal';
+import AddReviewModal from './components/modals/AddReviewModal';
+import DailyInspiration from './components/quotes/DailyInspiration';
 
 export default function App() {
-  const { user, books, logs, quotes, loading, addBook, updateBookProgress, addLog, addQuote, deleteBook, deleteQuote } = useFirebase();
+  const { user, books, logs, quotes, reviews, loading, addBook, updateBookProgress, addLog, addQuote, addReview, deleteBook, deleteQuote } = useFirebase();
   const [activeTab, setActiveTab] = useState<'reading' | 'habits' | 'quotes'>('reading');
   const [isAddingBook, setIsAddingBook] = useState(false);
   const [isLogging, setIsLogging] = useState<Book | null>(null);
+  const [isReviewing, setIsReviewing] = useState<Book | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isLoggingProgress, setIsLoggingProgress] = useState(false);
+  const [isAddingQuote, setIsAddingQuote] = useState(false);
+  const [deletingQuoteId, setDeletingQuoteId] = useState<string | null>(null);
 
   if (loading) {
     return (
@@ -62,12 +72,28 @@ export default function App() {
             A minimalist sanctuary for your reading journey.
           </p>
           <button
-            onClick={signInWithGoogle}
-            className="px-8 py-4 bg-slate-900 text-white font-semibold rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 mx-auto shadow-xl active:scale-95"
+            onClick={async () => {
+              setIsSigningIn(true);
+              try {
+                await signInWithGoogle();
+              } catch (error) {
+                toast.error("Sign in failed");
+              } finally {
+                setIsSigningIn(false);
+              }
+            }}
+            disabled={isSigningIn}
+            className="px-8 py-4 bg-slate-900 text-white font-semibold rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3 mx-auto shadow-xl active:scale-95 disabled:opacity-70 disabled:active:scale-100 min-w-[240px]"
             id="google-signin"
           >
-            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5 bg-white rounded-full p-0.5" />
-            Continue with Google
+            {isSigningIn ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              <>
+                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5 bg-white rounded-full p-0.5" />
+                Continue with Google
+              </>
+            )}
           </button>
         </motion.div>
       </div>
@@ -152,6 +178,8 @@ export default function App() {
                               deleteBook(id);
                               toast.error("Book removed from library");
                             }}
+                            onReview={(b) => setIsReviewing(b)}
+                            review={reviews.find(r => r.bookId === book.id)}
                           />
                         ))
                       ) : (
@@ -185,6 +213,8 @@ export default function App() {
                             deleteBook(id);
                             toast.error("Book removed from library");
                           }}
+                          onReview={(b) => setIsReviewing(b)}
+                          review={reviews.find(r => r.bookId === book.id)}
                         />
                       ))}
                     </div>
@@ -213,18 +243,21 @@ export default function App() {
                       <span className="w-1.5 h-1.5 rounded-full bg-ternary" />
                       Finished Collection
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       {finishedBooks.length > 0 ? (
                         finishedBooks.map(book => (
-                          <div key={book.id} className="flex items-center gap-4 bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
-                            <div className="w-10 h-14 bg-ternary/10 rounded-lg flex items-center justify-center text-ternary">
-                              {book.coverUrl ? <img src={book.coverUrl} className="w-full h-full object-cover rounded-lg" /> : <BookOpen size={20} />}
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-900 text-sm">{book.title}</p>
-                              <p className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5 font-bold">{format(new Date(book.updatedAt?.toDate?.() || Date.now()), 'MMM d, yyyy')}</p>
-                            </div>
-                          </div>
+                          <BookItem 
+                            key={book.id} 
+                            book={book} 
+                            onUpdateProgress={() => {}}
+                            onMarkFinished={() => {}}
+                            onDelete={(id) => {
+                              deleteBook(id);
+                              toast.error("Removed from collection");
+                            }}
+                            onReview={(b) => setIsReviewing(b)}
+                            review={reviews.find(r => r.bookId === book.id)}
+                          />
                         ))
                       ) : (
                         <p className="text-slate-300 text-sm italic col-span-2 text-center py-4">No finished books yet. Keep reading!</p>
@@ -242,6 +275,7 @@ export default function App() {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-8"
                 >
+                  <DailyInspiration quote={quotes[0]} />
                   <GlassCard className="p-8 lg:p-12">
                     <div className="flex justify-between items-center mb-10">
                       <h3 className="text-2xl font-black text-slate-900 italic">Memorable Quotes</h3>
@@ -254,15 +288,21 @@ export default function App() {
                           <div className="flex justify-between items-start gap-4">
                             <p className="text-xl font-medium text-slate-800 leading-relaxed">"{q.content}"</p>
                             <button 
-                              onClick={() => {
+                              onClick={async () => {
                                 if (confirm('Delete this quote?')) {
-                                  deleteQuote(q.id!);
-                                  toast.error("Quote deleted");
+                                  setDeletingQuoteId(q.id!);
+                                  try {
+                                    await deleteQuote(q.id!);
+                                    toast.error("Quote deleted");
+                                  } finally {
+                                    setDeletingQuoteId(null);
+                                  }
                                 }
                               }}
-                              className="p-2 text-slate-200 hover:text-secondary opacity-0 group-hover:opacity-100 transition-all"
+                              disabled={deletingQuoteId === q.id}
+                              className="p-2 text-slate-200 hover:text-secondary opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50"
                             >
-                              <Trash2 size={16} />
+                              {deletingQuoteId === q.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                             </button>
                           </div>
                           <div className="mt-3 text-[10px] text-slate-500 uppercase tracking-[0.2em] font-bold">
@@ -272,14 +312,8 @@ export default function App() {
                       ))}
                     </div>
                     <button 
-                      onClick={() => {
-                        const content = prompt("Quote content:");
-                        if (content) {
-                          addQuote({ content, author: prompt("Author:") || "", bookTitle: prompt("Book Title:") || "" });
-                          toast.success("New quote added to your collection");
-                        }
-                      }}
-                      className="mt-12 w-full py-6 border-2 border-dashed border-slate-200 rounded-3xl hover:border-primary hover:bg-primary/5 text-slate-400 hover:text-primary transition-all text-sm font-bold uppercase tracking-widest"
+                      onClick={() => setIsAddingQuote(true)}
+                      className="mt-12 w-full py-6 border-2 border-dashed border-slate-200 rounded-3xl hover:border-primary hover:bg-primary/5 text-slate-400 hover:text-primary transition-all text-sm font-bold uppercase tracking-widest flex items-center justify-center gap-2"
                     >
                       + Add New Insight
                     </button>
@@ -334,31 +368,71 @@ export default function App() {
           />
         )}
 
+        {isAddingQuote && (
+          <AddQuoteModal 
+            onClose={() => setIsAddingQuote(false)} 
+            onAdd={async (quoteData) => {
+              await addQuote(quoteData);
+              toast.success("New quote added to your collection");
+            }} 
+          />
+        )}
+
+        {isReviewing && (
+          <AddReviewModal 
+            book={isReviewing} 
+            onClose={() => setIsReviewing(null)} 
+            onAdd={async (reviewData) => {
+              await addReview(reviewData);
+            }} 
+          />
+        )}
+
         {isLogging && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsLogging(null)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" />
-            <GlassCard className="w-full max-w-sm relative z-10 border-white/60 shadow-2xl">
-              <h1 className="text-2xl font-black mb-1 text-slate-900">Log Progress</h1>
-              <p className="text-slate-400 text-xs uppercase tracking-widest font-bold mb-10">{isLogging.title}</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsLogging(null)} className="fixed inset-0 bg-slate-900/40 backdrop-blur-md" />
+            <GlassCard className="w-full max-w-sm relative z-10 border-white/60 shadow-2xl p-6 sm:p-10 my-auto">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h1 className="text-2xl font-black text-slate-900">Log Progress</h1>
+                  <p className="text-slate-400 text-[10px] uppercase tracking-widest font-bold mt-1">{isLogging.title}</p>
+                </div>
+                <button onClick={() => setIsLogging(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all">
+                  <X size={20} />
+                </button>
+              </div>
               <form onSubmit={async (e) => {
                 e.preventDefault();
-                const pages = parseInt(new FormData(e.currentTarget).get('pages') as string);
-                const newTotal = isLogging.currentPage + pages;
-                await updateBookProgress(isLogging.id!, Math.min(newTotal, isLogging.totalPages), newTotal >= isLogging.totalPages ? 'finished' : 'reading');
-                await addLog({
-                  bookId: isLogging.id,
-                  date: format(new Date(), 'yyyy-MM-dd'),
-                  pagesRead: pages,
-                  durationMinutes: 30, // Mock duration
-                });
-                toast.success(`Logged ${pages} pages for "${isLogging.title}"`);
-                setIsLogging(null);
+                setIsLoggingProgress(true);
+                try {
+                  const pages = parseInt(new FormData(e.currentTarget).get('pages') as string);
+                  const newTotal = isLogging.currentPage + pages;
+                  await updateBookProgress(isLogging.id!, Math.min(newTotal, isLogging.totalPages), newTotal >= isLogging.totalPages ? 'finished' : 'reading');
+                  await addLog({
+                    bookId: isLogging.id,
+                    date: format(new Date(), 'yyyy-MM-dd'),
+                    pagesRead: pages,
+                    durationMinutes: 30, // Mock duration
+                  });
+                  toast.success(`Logged ${pages} pages for "${isLogging.title}"`);
+                  setIsLogging(null);
+                } catch (error) {
+                  toast.error("Failed to log progress");
+                } finally {
+                  setIsLoggingProgress(false);
+                }
               }} className="space-y-6">
                 <div className="text-center">
                   <label className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-4 block">Pages Added Today</label>
-                  <input name="pages" type="number" autoFocus required className="w-full bg-transparent border-b-4 border-slate-100 focus:border-primary p-4 outline-none text-center text-6xl font-black text-slate-900 transition-all" placeholder="0" />
+                  <input name="pages" type="number" autoFocus required className="w-full bg-transparent border-b-4 border-slate-100 focus:border-primary p-4 outline-none text-center text-6xl font-black text-slate-900 transition-all placeholder:text-slate-100" placeholder="0" />
                 </div>
-                <button type="submit" className="w-full py-5 bg-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-transform">Update Tracker</button>
+                <button 
+                  type="submit" 
+                  disabled={isLoggingProgress}
+                  className="w-full py-5 bg-primary text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 active:scale-95 transition-transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:active:scale-100"
+                >
+                  {isLoggingProgress ? <Loader2 size={20} className="animate-spin" /> : 'Update Tracker'}
+                </button>
               </form>
             </GlassCard>
           </div>

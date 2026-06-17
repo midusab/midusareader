@@ -30,63 +30,61 @@ service cloud.firestore {
     // Entity Validations
     function isValidBook(data) {
       return data.userId == request.auth.uid &&
-             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
-             data.author is string && data.author.size() <= 200 &&
-             data.totalPages is int && data.totalPages >= 0 &&
-             data.currentPage is int && data.currentPage >= 0 &&
-             data.status in ['reading', 'tbr', 'finished'] &&
-             (data.category == null || data.category is string) &&
-             (data.notes == null || (data.notes is string && data.notes.size() <= 5000)) &&
-             (data.coverUrl == null || data.coverUrl is string);
+             data.title is string && data.title.size() > 0 &&
+             data.author is string &&
+             data.totalPages is number &&
+             data.currentPage is number &&
+             data.status in ['reading', 'tbr', 'finished'];
     }
 
     function isValidDailyLog(data) {
       return data.userId == request.auth.uid &&
              data.bookId is string &&
              data.date is string &&
-             data.pagesRead is int && data.pagesRead >= 0 &&
-             data.durationMinutes is int && data.durationMinutes >= 0;
+             data.pagesRead is number;
     }
 
     function isValidQuote(data) {
       return data.userId == request.auth.uid &&
-             data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
-             (data.author == null || data.author is string) &&
-             (data.bookTitle == null || data.bookTitle is string);
+             data.content is string && data.content.size() > 0;
     }
 
     function isValidSettings(data) {
-      return data.userId == request.auth.uid &&
-             (data.pomodoroWorkTime == null || data.pomodoroWorkTime is int) &&
-             (data.pomodoroBreakTime == null || data.pomodoroBreakTime is int);
+      return data.userId == request.auth.uid;
     }
 
     // 3. Collection Matches
     
     match /books/{bookId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidBook(incoming());
-      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidBook(incoming());
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
     match /logs/{logId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidDailyLog(incoming());
-      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidDailyLog(incoming());
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
     match /quotes/{quoteId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidQuote(incoming());
-      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidQuote(incoming());
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
     match /settings/{userId} {
-      allow read: if isOwner(userId);
-      allow write: if isOwner(userId) && isValidSettings(incoming());
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

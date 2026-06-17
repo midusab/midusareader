@@ -17,12 +17,13 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Book, DailyLog, Quote, UserSettings } from '../types';
+import { Book, DailyLog, Quote, Review, UserSettings } from '../types';
 
 export function useFirebase() {
   const [books, setBooks] = useState<Book[]>([]);
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(auth.currentUser);
 
@@ -45,39 +46,74 @@ export function useFirebase() {
 
     const booksQuery = query(
       collection(db, 'books'),
-      where('userId', '==', user.uid),
-      orderBy('updatedAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const logsQuery = query(
       collection(db, 'logs'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const quotesQuery = query(
       collection(db, 'quotes'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubBooks = onSnapshot(booksQuery, (snap) => {
-      setBooks(snap.docs.map(d => ({ id: d.id, ...d.data() } as Book)));
+      const sortedBooks = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Book))
+        .sort((a, b) => {
+          const timeA = b.updatedAt?.toMillis?.() || 0;
+          const timeB = a.updatedAt?.toMillis?.() || 0;
+          return timeA - timeB;
+        });
+      setBooks(sortedBooks);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'books'));
 
     const unsubLogs = onSnapshot(logsQuery, (snap) => {
-      setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as DailyLog)));
+      const sortedLogs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as DailyLog))
+        .sort((a, b) => {
+          const timeA = b.createdAt?.toMillis?.() || 0;
+          const timeB = a.createdAt?.toMillis?.() || 0;
+          return timeA - timeB;
+        });
+      setLogs(sortedLogs);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'logs'));
 
     const unsubQuotes = onSnapshot(quotesQuery, (snap) => {
-      setQuotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Quote)));
-      setLoading(false);
+      const sortedQuotes = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Quote))
+        .sort((a, b) => {
+          const timeA = b.createdAt?.toMillis?.() || 0;
+          const timeB = a.createdAt?.toMillis?.() || 0;
+          return timeA - timeB;
+        });
+      setQuotes(sortedQuotes);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'quotes'));
+
+    const reviewsQuery = query(
+      collection(db, 'reviews'),
+      where('userId', '==', user.uid)
+    );
+
+    const unsubReviews = onSnapshot(reviewsQuery, (snap) => {
+      const sortedReviews = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Review))
+        .sort((a, b) => {
+          const timeA = b.createdAt?.toMillis?.() || 0;
+          const timeB = a.createdAt?.toMillis?.() || 0;
+          return timeA - timeB;
+        });
+      setReviews(sortedReviews);
+      setLoading(false);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'reviews'));
 
     return () => {
       unsubBooks();
       unsubLogs();
       unsubQuotes();
+      unsubReviews();
     };
   }, [user]);
 
@@ -151,17 +187,42 @@ export function useFirebase() {
     }
   };
 
+  const addReview = async (review: Partial<Review>) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'reviews'), {
+        ...review,
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'reviews');
+    }
+  };
+
+  const deleteReview = async (reviewId: string) => {
+    try {
+      await deleteDoc(doc(db, 'reviews', reviewId));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `reviews/${reviewId}`);
+    }
+  };
+
   return {
     user,
     books,
     logs,
     quotes,
+    reviews,
     loading,
     addBook,
     updateBookProgress,
     addLog,
     addQuote,
+    addReview,
     deleteBook,
-    deleteQuote
+    deleteQuote,
+    deleteReview
   };
 }
